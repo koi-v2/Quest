@@ -30,11 +30,15 @@ import {
   Target,
   CheckCircle2,
   Skull,
-  Swords
+  Swords,
+  Store,
+  ShoppingBag,
+  FlaskConical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HeroClassType, HeroClassInfo, EquipmentItem, EquipmentType, RarityType, HeroCharacter, CalculatedStats, UserAccount, DailyMission, MissionCategory } from './types';
+import { HeroClassType, HeroClassInfo, EquipmentItem, EquipmentType, RarityType, HeroCharacter, CalculatedStats, UserAccount, DailyMission, MissionCategory, ExpPotionItem, ShopEquipmentItem } from './types';
 import { HERO_CLASSES, getStarterInventoryFor, getRandomLoot, getDefaultDailyMissions } from './data/constants';
+import { EXP_POTIONS, SHOP_EQUIPMENT } from './data/shopItems';
 
 export default function App() {
   // Navigation / View state
@@ -142,8 +146,10 @@ export default function App() {
   const [nicknameError, setNicknameError] = useState<string | null>(null);
 
   // Dashboard Tab state
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'INVENTORY' | 'MISSIONS' | 'DUNGEON' | 'ACCOUNT'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'INVENTORY' | 'SHOP' | 'MISSIONS' | 'DUNGEON' | 'ACCOUNT'>('OVERVIEW');
   const [selectedInventoryFilter, setSelectedInventoryFilter] = useState<EquipmentType | 'ALL'>('ALL');
+  const [shopCategory, setShopCategory] = useState<'ALL' | 'POTIONS' | 'EQUIPMENT'>('ALL');
+  const [shopClassFilter, setShopClassFilter] = useState<HeroClassType | 'ALL'>('ALL');
   const [inspectedItem, setInspectedItem] = useState<EquipmentItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -558,6 +564,81 @@ export default function App() {
     setInspectedItem(newItem);
     setToastMessage(`Peti Harta dibuka! Mendapatkan: [${newItem.rarity}] ${newItem.name}!`);
     updateMissionProgress('CHEST', 1);
+  };
+
+  const handleBuyExpPotion = (potion: ExpPotionItem) => {
+    if (!activeCharacterId || !activeCharacter) return;
+    if (activeCharacter.gold < potion.goldPrice) {
+      setToastMessage(`Gold tidak mencukupi! Butuh ${potion.goldPrice.toLocaleString()} Gold untuk membeli ${potion.name}.`);
+      return;
+    }
+
+    const expGain = potion.expAmount;
+    let newExp = activeCharacter.currentExp + expGain;
+    let newLevel = activeCharacter.level;
+    let newMaxExp = activeCharacter.maxExp;
+    let didLevelUp = false;
+
+    while (newExp >= newMaxExp) {
+      newExp -= newMaxExp;
+      newLevel += 1;
+      newMaxExp = Math.floor(newMaxExp * 1.35);
+      didLevelUp = true;
+    }
+
+    setCharacters(prev => prev.map(c => c.id === activeCharacterId ? {
+      ...c,
+      gold: c.gold - potion.goldPrice,
+      level: newLevel,
+      currentExp: newExp,
+      maxExp: newMaxExp
+    } : c));
+
+    if (didLevelUp) {
+      setToastMessage(`🧪 Minum ${potion.name}! +${expGain} EXP didapat & LEVEL UP ke Lv.${newLevel}! 🎉`);
+    } else {
+      setToastMessage(`🧪 Berhasil membeli & meminum ${potion.name}! +${expGain} EXP diperoleh.`);
+    }
+  };
+
+  const handleBuyEquipment = (item: ShopEquipmentItem) => {
+    if (!activeCharacterId || !activeCharacter) return;
+    if (activeCharacter.gold < item.goldPrice) {
+      setToastMessage(`Gold tidak mencukupi! Butuh ${item.goldPrice.toLocaleString()} Gold untuk membeli ${item.name}.`);
+      return;
+    }
+
+    const uniqueId = `bought_${item.id}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const newEquipment: EquipmentItem = {
+      id: uniqueId,
+      name: item.name,
+      type: item.type,
+      requiredClass: item.requiredClass,
+      rarity: item.rarity,
+      isEquipped: false,
+      hpBonus: item.hpBonus,
+      mpBonus: item.mpBonus,
+      atkBonus: item.atkBonus,
+      matkBonus: item.matkBonus,
+      defBonus: item.defBonus,
+      critBonus: item.critBonus,
+      speedBonus: item.speedBonus,
+      description: item.description,
+      iconKey: item.iconKey
+    };
+
+    setInventories(prev => ({
+      ...prev,
+      [activeCharacterId]: [...(prev[activeCharacterId] || []), newEquipment]
+    }));
+
+    setCharacters(prev => prev.map(c => c.id === activeCharacterId ? {
+      ...c,
+      gold: c.gold - item.goldPrice
+    } : c));
+
+    setInspectedItem(newEquipment);
+    setToastMessage(`✨ Berhasil membeli ${item.name} (${item.rarity}) seharga ${item.goldPrice.toLocaleString()} Gold!`);
   };
 
   const handleTrainCharacter = () => {
@@ -1318,10 +1399,15 @@ export default function App() {
                   )}
                 </button>
 
-                <div className="flex items-center gap-1.5 bg-[#212836] border border-[#FFB300]/40 px-2.5 py-1.5 rounded-xl text-xs font-bold text-[#FFD54F]">
-                  <Coins className="w-4 h-4 text-[#FFB300]" />
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('SHOP')}
+                  className="flex items-center gap-1.5 bg-[#212836] hover:bg-[#2B3447] border border-[#FFB300]/40 hover:border-[#FFB300] px-2.5 py-1.5 rounded-xl text-xs font-bold text-[#FFD54F] transition group cursor-pointer"
+                  title="Kunjungi Toko Emas"
+                >
+                  <Coins className="w-4 h-4 text-[#FFB300] group-hover:scale-110 transition-transform" />
                   <span>{activeCharacter.gold.toLocaleString()}</span>
-                </div>
+                </button>
                 <div className="flex items-center gap-1.5 bg-[#212836] border border-purple-500/40 px-2.5 py-1.5 rounded-xl text-xs font-bold text-purple-300">
                   <Gem className="w-4 h-4 text-purple-400" />
                   <span>{activeCharacter.diamonds}</span>
@@ -1343,11 +1429,11 @@ export default function App() {
           </header>
 
           {/* Navigation Tabs Header */}
-          <div className="bg-[#161B22] border-b border-[#30363D] grid grid-cols-5 px-1 sm:px-2">
+          <div className="bg-[#161B22] border-b border-[#30363D] grid grid-cols-6 px-1 sm:px-2">
             <button
               type="button"
               onClick={() => setActiveTab('OVERVIEW')}
-              className={`py-3 text-[11px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 ${
+              className={`py-3 text-[10px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 ${
                 activeTab === 'OVERVIEW'
                   ? 'border-[#FFB300] text-[#FFB300]'
                   : 'border-transparent text-slate-400 hover:text-white'
@@ -1360,7 +1446,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActiveTab('INVENTORY')}
-              className={`py-3 text-[11px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 ${
+              className={`py-3 text-[10px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 ${
                 activeTab === 'INVENTORY'
                   ? 'border-[#FFB300] text-[#FFB300]'
                   : 'border-transparent text-slate-400 hover:text-white'
@@ -1372,8 +1458,21 @@ export default function App() {
 
             <button
               type="button"
+              onClick={() => setActiveTab('SHOP')}
+              className={`py-3 text-[10px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 relative ${
+                activeTab === 'SHOP'
+                  ? 'border-[#FFB300] text-[#FFB300]'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              <Store className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FFB300]" />
+              <span>Toko Emas</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('MISSIONS')}
-              className={`py-3 text-[11px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 relative ${
+              className={`py-3 text-[10px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 relative ${
                 activeTab === 'MISSIONS'
                   ? 'border-[#FFB300] text-[#FFB300]'
                   : 'border-transparent text-slate-400 hover:text-white'
@@ -1394,7 +1493,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActiveTab('DUNGEON')}
-              className={`py-3 text-[11px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 ${
+              className={`py-3 text-[10px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 ${
                 activeTab === 'DUNGEON'
                   ? 'border-[#FFB300] text-[#FFB300]'
                   : 'border-transparent text-slate-400 hover:text-white'
@@ -1407,7 +1506,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActiveTab('ACCOUNT')}
-              className={`py-3 text-[11px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 ${
+              className={`py-3 text-[10px] sm:text-xs font-bold border-b-2 transition flex items-center justify-center gap-1 sm:gap-1.5 ${
                 activeTab === 'ACCOUNT'
                   ? 'border-[#FFB300] text-[#FFB300]'
                   : 'border-transparent text-slate-400 hover:text-white'
@@ -1661,15 +1760,26 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* Quick Train Button */}
-                <button
-                  type="button"
-                  onClick={handleTrainCharacter}
-                  className="w-full py-3.5 bg-[#FFB300] hover:bg-[#FFA000] text-[#0D1117] font-black rounded-xl text-sm transition shadow-lg shadow-[#FFB300]/20 flex items-center justify-center gap-2"
-                >
-                  <Dumbbell className="w-5 h-5" />
-                  <span>LATIHAN KARAKTER (+45 EXP, +80 GOLD)</span>
-                </button>
+                {/* Quick Action Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTrainCharacter}
+                    className="w-full py-3.5 bg-[#FFB300] hover:bg-[#FFA000] text-[#0D1117] font-black rounded-xl text-sm transition shadow-lg shadow-[#FFB300]/20 flex items-center justify-center gap-2"
+                  >
+                    <Dumbbell className="w-5 h-5" />
+                    <span>LATIHAN STAT (+45 EXP, +80 GOLD)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('SHOP')}
+                    className="w-full py-3.5 bg-[#212836] hover:bg-[#2B3447] text-[#FFD54F] border border-[#FFB300]/50 hover:border-[#FFB300] font-black rounded-xl text-sm transition shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <Store className="w-5 h-5 text-[#FFB300]" />
+                    <span>TOKO EMAS (BELI GEAR & EXP)</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1731,15 +1841,26 @@ export default function App() {
                     ))}
                   </div>
 
-                  {/* Open Loot Chest */}
-                  <button
-                    type="button"
-                    onClick={handleOpenLootChest}
-                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-[#0D1117] font-black rounded-xl text-xs flex items-center gap-2 shadow-lg transition self-start sm:self-auto"
-                  >
-                    <Gift className="w-4 h-4" />
-                    <span>Buka Peti Misteri (250 Gold)</span>
-                  </button>
+                  {/* Shop & Loot Chest Actions */}
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('SHOP')}
+                      className="px-3.5 py-2 bg-[#212836] hover:bg-[#2B3447] text-[#FFD54F] border border-[#FFB300]/50 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                    >
+                      <Store className="w-3.5 h-3.5 text-[#FFB300]" />
+                      <span>Toko Emas</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenLootChest}
+                      className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-[#0D1117] font-black rounded-xl text-xs flex items-center gap-2 shadow-lg transition"
+                    >
+                      <Gift className="w-4 h-4" />
+                      <span>Buka Peti (250 Gold)</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Inventory Bag List */}
@@ -1787,6 +1908,384 @@ export default function App() {
                       </div>
                     ))}
                 </div>
+              </div>
+            )}
+
+            {/* TAB: GOLD SHOP (TOKO EMAS) */}
+            {activeTab === 'SHOP' && (
+              <div className="space-y-6">
+                {/* Shop Header Banner */}
+                <div className="bg-gradient-to-r from-[#161B22] via-[#1C2433] to-[#161B22] border-2 border-[#FFB300]/60 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-[#FFB300]/20 border border-[#FFB300] flex items-center justify-center text-[#FFB300] shadow-[0_0_20px_rgba(255,179,0,0.3)] flex-shrink-0">
+                        <Store className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base sm:text-lg font-black text-white tracking-wide">
+                            TOKO EMAS PETUALANG (GOLD SHOP)
+                          </h3>
+                          <span className="px-2 py-0.5 rounded-full bg-[#FFB300] text-[#0D1117] font-black text-[10px]">
+                            RESMI
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                          Gunakan koin emas yang kamu kumpulkan untuk membeli ramuan penambah EXP instan dan perlengkapan tempur langka pilihan!
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Gold Balance Pill */}
+                    <div className="bg-[#0D1117]/80 border border-[#FFB300]/60 rounded-2xl px-4 py-2.5 flex items-center gap-3 self-start sm:self-auto shadow-inner">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center text-[#FFB300]">
+                        <Coins className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Saldo Emasmu</div>
+                        <div className="text-base font-black text-[#FFD54F]">
+                          {activeCharacter.gold.toLocaleString()} <span className="text-xs font-bold text-slate-400">Gold</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Character Overview bar */}
+                  <div className="mt-4 pt-3.5 border-t border-[#30363D]/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3 text-slate-300">
+                      <span>Karakter: <strong className="text-white">{activeCharacter.nickname}</strong></span>
+                      <span>•</span>
+                      <span>Kelas: <strong className="text-[#FFD54F]">{HERO_CLASSES[activeCharacter.heroClass].displayName}</strong></span>
+                      <span>•</span>
+                      <span>Level: <strong className="text-white">Lv.{activeCharacter.level}</strong></span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-slate-400">
+                      <span>EXP Saat Ini:</span>
+                      <div className="w-24 sm:w-32 h-2 bg-[#0D1117] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#FFB300] rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, (activeCharacter.currentExp / activeCharacter.maxExp) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="font-bold text-[#FFD54F]">{activeCharacter.currentExp}/{activeCharacter.maxExp}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter and Category Pills */}
+                <div className="bg-[#161B22] border border-[#30363D] rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  {/* Category Filter */}
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShopCategory('ALL')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                        shopCategory === 'ALL'
+                          ? 'bg-[#FFB300] text-[#0D1117] shadow-md shadow-[#FFB300]/20'
+                          : 'bg-[#212836] text-slate-300 hover:text-white border border-[#30363D]'
+                      }`}
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      <span>Semua Barang</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShopCategory('POTIONS')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                        shopCategory === 'POTIONS'
+                          ? 'bg-[#FFB300] text-[#0D1117] shadow-md shadow-[#FFB300]/20'
+                          : 'bg-[#212836] text-slate-300 hover:text-white border border-[#30363D]'
+                      }`}
+                    >
+                      <FlaskConical className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Ramuan EXP ({EXP_POTIONS.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShopCategory('EQUIPMENT')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                        shopCategory === 'EQUIPMENT'
+                          ? 'bg-[#FFB300] text-[#0D1117] shadow-md shadow-[#FFB300]/20'
+                          : 'bg-[#212836] text-slate-300 hover:text-white border border-[#30363D]'
+                      }`}
+                    >
+                      <Sword className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Equipment Langka ({SHOP_EQUIPMENT.length})</span>
+                    </button>
+                  </div>
+
+                  {/* Class Filter (active when looking at equipment or all) */}
+                  {(shopCategory === 'ALL' || shopCategory === 'EQUIPMENT') && (
+                    <div className="flex items-center gap-1 text-xs">
+                      <span className="text-slate-400 mr-1 hidden sm:inline">Filter Kelas:</span>
+                      <button
+                        type="button"
+                        onClick={() => setShopClassFilter('ALL')}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
+                          shopClassFilter === 'ALL'
+                            ? 'bg-[#FFB300]/20 text-[#FFD54F] border border-[#FFB300]'
+                            : 'bg-[#212836] text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Semua
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShopClassFilter(activeCharacter.heroClass)}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition flex items-center gap-1 ${
+                          shopClassFilter === activeCharacter.heroClass
+                            ? 'bg-[#FFB300]/20 text-[#FFD54F] border border-[#FFB300]'
+                            : 'bg-[#212836] text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span>{HERO_CLASSES[activeCharacter.heroClass].displayName}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* SECTION 1: EXP POTIONS */}
+                {(shopCategory === 'ALL' || shopCategory === 'POTIONS') && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FlaskConical className="w-4 h-4 text-cyan-400" />
+                        <h4 className="text-xs font-black uppercase tracking-wider text-cyan-400">
+                          RAMUAN PENGALAMAN (EXPERIENCE POTIONS)
+                        </h4>
+                      </div>
+                      <span className="text-[11px] text-slate-400">Minum langsung untuk menambah EXP</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                      {EXP_POTIONS.map(potion => {
+                        const canAfford = activeCharacter.gold >= potion.goldPrice;
+                        return (
+                          <div
+                            key={potion.id}
+                            className="bg-[#161B22] border border-[#30363D] hover:border-[#38BDF8]/60 rounded-2xl p-4 flex flex-col justify-between transition relative overflow-hidden group shadow-lg"
+                          >
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl group-hover:bg-cyan-500/10 transition" />
+
+                            <div>
+                              {/* Icon & Tier */}
+                              <div className="flex items-center justify-between mb-3">
+                                <div
+                                  className="w-11 h-11 rounded-xl flex items-center justify-center border shadow-md"
+                                  style={{
+                                    backgroundColor: `${potion.glowColor}20`,
+                                    borderColor: `${potion.glowColor}60`
+                                  }}
+                                >
+                                  <FlaskConical className="w-6 h-6" style={{ color: potion.glowColor }} />
+                                </div>
+
+                                <span
+                                  className="px-2 py-0.5 rounded-full text-[10px] font-black border"
+                                  style={{
+                                    color: potion.glowColor,
+                                    borderColor: `${potion.glowColor}40`,
+                                    backgroundColor: `${potion.glowColor}15`
+                                  }}
+                                >
+                                  {potion.tier}
+                                </span>
+                              </div>
+
+                              {/* Title & EXP Boost */}
+                              <h4 className="font-bold text-sm text-white mb-1">{potion.name}</h4>
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-extrabold text-xs">
+                                  +{potion.expAmount.toLocaleString()} EXP
+                                </span>
+                              </div>
+
+                              {/* Description */}
+                              <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed mb-4">
+                                {potion.description}
+                              </p>
+                            </div>
+
+                            {/* Price & Buy Button */}
+                            <div className="pt-3 border-t border-[#30363D]/60">
+                              <div className="flex items-center justify-between text-xs mb-2">
+                                <span className="text-slate-400 font-medium">Harga:</span>
+                                <div className="flex items-center gap-1 text-[#FFD54F] font-black">
+                                  <Coins className="w-3.5 h-3.5 text-[#FFB300]" />
+                                  <span>{potion.goldPrice.toLocaleString()} Gold</span>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleBuyExpPotion(potion)}
+                                disabled={!canAfford}
+                                className={`w-full py-2.5 rounded-xl font-black text-xs transition flex items-center justify-center gap-1.5 shadow-md ${
+                                  canAfford
+                                    ? 'bg-[#FFB300] hover:bg-[#FFA000] text-[#0D1117] shadow-[#FFB300]/20'
+                                    : 'bg-[#212836] text-slate-500 border border-[#30363D] cursor-not-allowed'
+                                }`}
+                              >
+                                {canAfford ? (
+                                  <>
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span>Beli & Minum (+{potion.expAmount} EXP)</span>
+                                  </>
+                                ) : (
+                                  <span>Gold Kurang ({potion.goldPrice - activeCharacter.gold} Lagi)</span>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 2: RARE & EPIC EQUIPMENT */}
+                {(shopCategory === 'ALL' || shopCategory === 'EQUIPMENT') && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sword className="w-4 h-4 text-amber-400" />
+                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-400">
+                          PERLENGKAPAN LANGKA & EPIK (RARE & EPIC GEAR)
+                        </h4>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        {shopClassFilter === 'ALL'
+                          ? 'Semua Kelas & Universal'
+                          : `Filter: ${HERO_CLASSES[activeCharacter.heroClass].displayName}`}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      {SHOP_EQUIPMENT
+                        .filter(item => {
+                          if (shopClassFilter === 'ALL') return true;
+                          return item.requiredClass === null || item.requiredClass === shopClassFilter;
+                        })
+                        .map(item => {
+                          const canAfford = activeCharacter.gold >= item.goldPrice;
+                          const currentInv = inventories[activeCharacterId] || [];
+                          const alreadyInBag = currentInv.some(it => it.name === item.name);
+
+                          return (
+                            <div
+                              key={item.id}
+                              className={`bg-[#161B22] border rounded-2xl p-4 flex flex-col justify-between transition hover:border-[#FFB300]/60 relative shadow-lg ${
+                                item.rarity === 'LEGENDARY'
+                                  ? 'border-amber-400/50 shadow-[0_0_15px_rgba(251,191,36,0.15)]'
+                                  : item.rarity === 'EPIC'
+                                  ? 'border-purple-400/40 shadow-[0_0_15px_rgba(192,132,252,0.1)]'
+                                  : 'border-blue-400/30'
+                              }`}
+                            >
+                              <div>
+                                {/* Header: Icon, Name & Rarity */}
+                                <div className="flex items-start justify-between gap-3 mb-2.5">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-11 h-11 rounded-xl bg-[#0D1117] border border-[#30363D] flex items-center justify-center text-[#FFB300] flex-shrink-0">
+                                      <Sword className="w-5 h-5" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <h4 className="font-bold text-sm text-white truncate">{item.name}</h4>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <span className={`px-2 py-0.5 text-[9px] font-black rounded border ${getRarityBadgeColor(item.rarity)}`}>
+                                          {item.rarity}
+                                        </span>
+                                        <span className="text-[11px] text-slate-400 font-semibold">{item.type}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {alreadyInBag && (
+                                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[9px] border border-emerald-500/30 flex-shrink-0">
+                                      Sudah di Tas
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Class Tag */}
+                                <div className="mb-2.5">
+                                  {item.requiredClass ? (
+                                    <span
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                                        item.requiredClass === activeCharacter.heroClass
+                                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                          : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                                      }`}
+                                    >
+                                      <span>Khusus: {HERO_CLASSES[item.requiredClass].displayName}</span>
+                                      {item.requiredClass === activeCharacter.heroClass && <span>✓ Cocok</span>}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[#212836] text-slate-300 border border-[#30363D]">
+                                      Universal (Semua Kelas)
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Stat Bonuses Grid */}
+                                <div className="bg-[#0D1117] p-2.5 rounded-xl border border-[#30363D] mb-3 flex flex-wrap gap-2 text-[11px] font-bold">
+                                  {item.atkBonus > 0 && <span className="text-amber-400">+{item.atkBonus} ATK</span>}
+                                  {item.matkBonus > 0 && <span className="text-purple-400">+{item.matkBonus} MATK</span>}
+                                  {item.defBonus > 0 && <span className="text-teal-400">+{item.defBonus} DEF</span>}
+                                  {item.hpBonus > 0 && <span className="text-red-400">+{item.hpBonus} HP</span>}
+                                  {item.mpBonus > 0 && <span className="text-blue-400">+{item.mpBonus} MP</span>}
+                                  {item.critBonus > 0 && <span className="text-rose-400">+{item.critBonus}% CRIT</span>}
+                                  {item.speedBonus > 0 && <span className="text-yellow-400">+{item.speedBonus} SPD</span>}
+                                </div>
+
+                                {/* Description */}
+                                <p className="text-[11px] text-slate-400 leading-relaxed mb-4 italic">
+                                  "{item.description}"
+                                </p>
+                              </div>
+
+                              {/* Price and Action Buttons */}
+                              <div className="pt-3 border-t border-[#30363D]/60 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 text-[#FFD54F] font-black text-xs sm:text-sm">
+                                  <Coins className="w-4 h-4 text-[#FFB300]" />
+                                  <span>{item.goldPrice.toLocaleString()} <span className="text-[10px] font-bold text-slate-400">Gold</span></span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setInspectedItem(item)}
+                                    className="p-2 rounded-xl bg-[#212836] hover:bg-[#2B3447] text-slate-300 hover:text-white border border-[#30363D] transition text-xs"
+                                    title="Lihat Detail Stat"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleBuyEquipment(item)}
+                                    disabled={!canAfford}
+                                    className={`px-3 py-2 rounded-xl font-black text-xs transition flex items-center gap-1 shadow-md ${
+                                      canAfford
+                                        ? 'bg-[#FFB300] hover:bg-[#FFA000] text-[#0D1117] shadow-[#FFB300]/20'
+                                        : 'bg-[#212836] text-slate-500 border border-[#30363D] cursor-not-allowed'
+                                    }`}
+                                  >
+                                    <ShoppingBag className="w-3.5 h-3.5" />
+                                    <span>{canAfford ? 'Beli' : 'Gold Kurang'}</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

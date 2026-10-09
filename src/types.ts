@@ -93,3 +93,18 @@ export interface DailyMission {
   category: MissionCategory;
   iconKey: string;
 }
+
+export interface ExpPotionItem {
+  id: string;
+  name: string;
+  tier: 'MINOR' | 'MEDIUM' | 'GREATER' | 'ANCIENT';
+  expAmount: number;
+  goldPrice: number;
+  description: string;
+  glowColor: string;
+}
+
+export interface ShopEquipmentItem extends EquipmentItem {
+  goldPrice: number;
+}
+
