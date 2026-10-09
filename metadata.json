@@ -1,0 +1,6 @@
+{
+  "name": "Valiant Origin RPG",
+  "description": "Game RPG petualangan epik dengan pemilihan class Warrior, Mage, Archer, Assassin, sistem inventory equipment, dan statistik karakter.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
